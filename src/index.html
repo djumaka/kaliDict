@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kali Dictionary</title>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+    <style>
+        :root {
+            --card-bg: #ffffff;
+            --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --primary: #4f46e5;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            padding: 1.5rem;
+            margin: 1rem 0;
+            transition: transform 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .test-options {
+            display: grid;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .test-options button {
+            width: 100%;
+            text-align: left;
+        }
+        
+        .correct {
+            background-color: #d1fae5 !important;
+        }
+        
+        .incorrect {
+            background-color: #fee2e2 !important;
+        }
+        
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+    </style>
+<style>
+    .bottom-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+        z-index: 1000;
+        height: 56px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .nav-buttons {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .nav-buttons button {
+        flex: 1;
+        height: 100%;
+        margin: 0;
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        color: #495057;
+        font-weight: 500;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 8px 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .nav-buttons button:hover {
+        background: #e9ecef;
+    }
+    
+    .nav-buttons button.primary,
+    .nav-buttons button[aria-current="page"] {
+        color: #4f46e5;
+        background: #eef2ff;
+    }
+    
+    .nav-buttons button i {
+        font-size: 1.25rem;
+    }
+    
+    .main-content {
+        padding-bottom: 56px; /* Height of the bottom nav */
+    }
+</style>
+
+<body>
+    <div x-data="dictionaryApp" class="container">
+        <header style="margin-bottom: 2rem;">
+            <h1>Kali Dictionary</h1>
+        </header>
+        
+        <main class="main-content">
+        
+        <div x-show="view === 'dictionary'">
+            <div class="grid" style="margin-bottom: 1rem;">
+                <div>
+                    <input type="text" x-model="searchTerm" @input="filterWords" placeholder="Search words...">
+                </div>
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button @click="addNewWord = true">Add New Word</button>
+                    <button @click="exportData()" class="secondary">Export Data</button>
+                    <button @click="importData()" class="secondary">Import Data</button>
+                    <input type="file" id="importFile" style="display: none;" @change="handleFileImport">
+                </div>
+            </div>
+            
+            <div x-show="addNewWord" class="card">
+                <h3>Add New Word</h3>
+                <div class="grid">
+                    <div>
+                        <label>Word</label>
+                        <input type="text" x-model="newWord.word" placeholder="Enter word">
+                    </div>
+                    <div>
+                        <label>Meaning</label>
+                        <input type="text" x-model="newWord.meaning" placeholder="Enter meaning">
+                    </div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <button @click="addWord">Add Word</button>
+                    <button @click="addNewWord = false" class="secondary">Cancel</button>
+                </div>
+            </div>
+            
+            <div x-show="!addNewWord">
+                <div x-show="filteredWords.length === 0">
+                    <p>No words found. Add a new word to get started!</p>
+                </div>
+                
+                <div x-show="filteredWords.length > 0">
+                    <div x-html="wordCards"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div x-show="view === 'random'" x-init="showRandomWord()" style="max-width: 600px; margin: 0 auto; padding: 1rem;">
+            <div class="card" style="text-align: center; padding: 2rem; min-height: 300px; display: flex; flex-direction: column; justify-content: center;">
+                <template x-if="words.length === 0">
+                    <div>
+                        <h2>No words available</h2>
+                        <p>Add some words to your dictionary first!</p>
+                        <button @click="view = 'dictionary'" class="primary" style="margin-top: 1rem;">
+                            Go to Dictionary
+                        </button>
+                    </div>
+                </template>
+                <template x-if="words.length > 0">
+                    <div>
+                        <h2 x-text="randomWord?.word || 'Loading...'"></h2>
+                        <div style="margin: 2rem 0; min-height: 100px; display: flex; align-items: center; justify-content: center;">
+                            <p x-text="randomWord?.meaning || 'Click the button below to see a word'"></p>
+                        </div>
+                        <button @click="showRandomWord()" class="primary" :disabled="loading">
+                            <span x-show="!loading">Show Another Word</span>
+                            <span x-show="loading">Loading...</span>
+                        </button>
+                    </div>
+                </template>
+            </div>
+        </div>
+        
+        <div x-show="view === 'test'" x-init="startTest()">
+            <div x-show="!testComplete" class="card">
+                <h3>Test Your Knowledge</h3>
+                <p>What is the meaning of:</p>
+                <h2 x-text="currentTest.question"></h2>
+                
+                <div class="test-options">
+                    <template x-for="(option, index) in currentTest.options" :key="index">
+                        <button 
+                            @click="checkAnswer(option.correct, $event)"
+                            :class="{ 
+                                'correct': option.correct && selectedAnswer !== null,
+                                'incorrect': !option.correct && selectedAnswer === option.text
+                            }"
+                            :disabled="selectedAnswer !== null"
+                            x-text="option.text">
+                        </button>
+                    </template>
+                </div>
+                
+                <div x-show="selectedAnswer !== null" style="margin-top: 1rem;">
+                    <p x-show="isCorrect">✅ Correct!</p>
+                    <p x-show="!isCorrect">❌ Incorrect. The correct answer is: <span x-text="correctAnswer"></span></p>
+                    <button @click="nextQuestion" style="margin-top: 1rem;">Next Question</button>
+                </div>
+            </div>
+            
+            <div x-show="testComplete" class="card">
+                <h3>Test Complete!</h3>
+                <p>Your score: <span x-text="score"></span> out of <span x-text="testWords.length"></span></p>
+                <button @click="startTest()" style="margin-top: 1rem;">Restart Test</button>
+            </div>
+        </div>
+        
+        </main>
+        
+        <nav class="bottom-nav">
+            <div class="nav-buttons">
+                <button 
+                    @click="view = 'test'" 
+                    :class="{ 'primary': view === 'test' }"
+                    :aria-current="view === 'test' ? 'page' : undefined">
+                    <iconify-icon icon="jam:help" width="20" height="20"></iconify-icon>
+                    <span>Test</span>
+                </button>
+                <button 
+                    @click="view = 'random'" 
+                    :class="{ 'primary': view === 'random' }"
+                    :aria-current="view === 'random' ? 'page' : undefined">
+                    <iconify-icon icon="jam:lightbulb" width="20" height="20"></iconify-icon>
+                    <span>Learn</span>
+                </button>
+                <button 
+                    @click="view = 'dictionary'" 
+                    :class="{ 'primary': view === 'dictionary' }"
+                    :aria-current="view === 'dictionary' ? 'page' : undefined">
+                    <iconify-icon icon="jam:book" width="20" height="20"></iconify-icon>
+                    <span>Dictionary</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
