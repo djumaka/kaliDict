@@ -44,6 +44,7 @@ document.addEventListener('alpine:init', () => {
         testComplete: false,
         loading: false,
         randomWord: null,
+        isAdminMode: false,
 
         async init() {
             await this.loadWords();
@@ -104,7 +105,11 @@ document.addEventListener('alpine:init', () => {
                 <div class="card">
                     <h3>${this.escapeHtml(word.word)}</h3>
                     <p>${this.escapeHtml(word.meaning)}</p>
-                    <button @click="deleteWord(${word.id})" class="secondary" style="margin-top: 0.5rem;">Delete</button>
+                    ${this.isAdminMode ? `
+                    <button @click="deleteWord(${word.id})" class="secondary" style="margin-top: 0.5rem; color: white; background-color: #dc2626; border-color: #dc2626; padding: 0.25rem 0.5rem; display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 32px;" title="Delete">
+                        <iconify-icon icon="jam:trash" width="16" height="16"></iconify-icon>
+                    </button>
+                    ` : ''}
                 </div>
             `).join('');
         },
