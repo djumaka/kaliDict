@@ -45,6 +45,16 @@ document.addEventListener('alpine:init', () => {
         loading: false,
         randomWord: null,
         isAdminMode: false,
+        
+        toggleAdminMode() {
+            if (!this.isAdminMode) {
+                if (confirm('Are you sure you want to enable admin mode? This will show advanced options.')) {
+                    this.isAdminMode = true;
+                }
+            } else {
+                this.isAdminMode = false;
+            }
+        },
 
         async init() {
             await this.loadWords();
