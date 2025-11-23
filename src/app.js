@@ -41,11 +41,13 @@ document.addEventListener('alpine:init', () => {
         isCorrect: false,
         correctAnswer: '',
         score: 0,
+        questionLimit: 10,
+        totalQuestions: 10,
         testComplete: false,
         loading: false,
         randomWord: null,
         isAdminMode: false,
-        
+
         toggleAdminMode() {
             if (!this.isAdminMode) {
                 if (confirm('Are you sure you want to enable admin mode? This will show advanced options.')) {
@@ -62,26 +64,26 @@ document.addEventListener('alpine:init', () => {
                 await this.showRandomWord();
             }
         },
-        
+
         async showRandomWord() {
             if (this.words.length === 0) {
                 this.randomWord = null;
                 return;
             }
-            
+
             this.loading = true;
-            
+
             try {
                 // Small delay to show loading state
                 await new Promise(resolve => setTimeout(resolve, 200));
-                
+
                 // Get a random word that's different from the current one
                 let newRandomWord;
                 do {
                     const randomIndex = Math.floor(Math.random() * this.words.length);
                     newRandomWord = this.words[randomIndex];
                 } while (this.words.length > 1 && newRandomWord?.id === this.randomWord?.id);
-                
+
                 this.randomWord = newRandomWord;
             } finally {
                 this.loading = false;
@@ -102,10 +104,10 @@ document.addEventListener('alpine:init', () => {
                 this.filteredWords = [...this.words];
                 return;
             }
-            
+
             const term = this.searchTerm.toLowerCase();
-            this.filteredWords = this.words.filter(word => 
-                word.word.toLowerCase().includes(term) || 
+            this.filteredWords = this.words.filter(word =>
+                word.word.toLowerCase().includes(term) ||
                 word.meaning.toLowerCase().includes(term)
             );
         },
@@ -135,14 +137,14 @@ document.addEventListener('alpine:init', () => {
 
         async addWord() {
             if (!this.newWord.word || !this.newWord.meaning) return;
-            
+
             try {
                 await db.words.add({
                     word: this.newWord.word.trim(),
                     meaning: this.newWord.meaning.trim(),
                     createdAt: new Date()
                 });
-                
+
                 this.newWord = { word: '', meaning: '' };
                 this.addNewWord = false;
                 await this.loadWords();
@@ -153,7 +155,7 @@ document.addEventListener('alpine:init', () => {
 
         async deleteWord(id) {
             if (!confirm('Are you sure you want to delete this word?')) return;
-            
+
             try {
                 await db.words.delete(id);
                 await this.loadWords();
@@ -163,7 +165,10 @@ document.addEventListener('alpine:init', () => {
         },
 
         async startTest() {
-            this.testWords = [...this.words];
+            const shuffledWords = [...this.words].sort(() => 0.5 - Math.random());
+            const questionsCount = Math.min(this.questionLimit, shuffledWords.length);
+            this.testWords = shuffledWords.slice(0, questionsCount);
+            this.totalQuestions = questionsCount;
             this.score = 0;
             this.testComplete = false;
             this.nextQuestion();
@@ -174,45 +179,41 @@ document.addEventListener('alpine:init', () => {
                 this.testComplete = true;
                 return;
             }
-            
+
             this.selectedAnswer = null;
             this.isCorrect = false;
-            
-            // Get a random word
-            const randomIndex = Math.floor(Math.random() * this.testWords.length);
-            const correctWord = this.testWords[randomIndex];
-            
-            // Remove the word from the test words so it doesn't repeat
-            this.testWords.splice(randomIndex, 1);
-            
+
+            // Use the next preselected word
+            const correctWord = this.testWords.pop();
+
             // Get 3 random incorrect answers
             const incorrectWords = this.words
                 .filter(w => w.id !== correctWord.id)
                 .sort(() => 0.5 - Math.random())
                 .slice(0, 3);
-            
+
             // Combine and shuffle options
             const options = [
                 { text: correctWord.meaning, correct: true }
             ].concat(
                 incorrectWords.map(w => ({ text: w.meaning, correct: false }))
             ).sort(() => 0.5 - Math.random());
-            
+
             this.currentTest = {
                 question: correctWord.word,
                 options: options,
                 correctMeaning: correctWord.meaning
             };
-            
+
             this.correctAnswer = correctWord.meaning;
         },
 
         checkAnswer(isCorrect, event) {
             if (this.selectedAnswer !== null) return;
-            
+
             this.selectedAnswer = event.target.textContent;
             this.isCorrect = isCorrect;
-            
+
             if (isCorrect) {
                 this.score++;
             }
@@ -226,10 +227,10 @@ document.addEventListener('alpine:init', () => {
                     exportedAt: new Date().toISOString(),
                     words: words
                 };
-                
+
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
-                
+
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `dictionary-export-${new Date().toISOString().split('T')[0]}.json`;
@@ -254,17 +255,17 @@ document.addEventListener('alpine:init', () => {
                 if (!response.ok) {
                     throw new Error('Failed to fetch dictionary.');
                 }
-                
+
                 const payload = await response.json();
                 const words = Array.isArray(payload?.words) ? payload.words : Array.isArray(payload) ? payload : null;
-                
+
                 if (!words) {
                     throw new Error('Invalid dictionary format.');
                 }
-                
+
                 const addedCount = await this.processWordData(words, { onlyAddMissing: true });
                 await this.loadWords();
-                
+
                 if (addedCount === 0) {
                     alert('Your dictionary is already up to date.');
                 } else {
@@ -279,19 +280,19 @@ document.addEventListener('alpine:init', () => {
         async handleFileImport(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
+
             const reader = new FileReader();
             reader.onload = async (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
-                    
+
                     if (!data.words || !Array.isArray(data.words)) {
                         throw new Error('Invalid file format');
                     }
-                    
+
                     const importedCount = await this.processWordData(data.words, { replaceExisting: true });
                     await this.loadWords();
-                    
+
                     alert(`Successfully imported ${importedCount} words.`);
                 } catch (error) {
                     console.error('Error importing data:', error);
@@ -299,7 +300,7 @@ document.addEventListener('alpine:init', () => {
                 }
             };
             reader.readAsText(file);
-            
+
             // Reset the input so the same file can be imported again if needed
             event.target.value = '';
         },
@@ -308,13 +309,13 @@ document.addEventListener('alpine:init', () => {
             if (!Array.isArray(words)) {
                 throw new Error('Words must be an array.');
             }
-            
+
             if (replaceExisting) {
                 await db.words.clear();
                 await db.words.bulkAdd(words);
                 return words.length;
             }
-            
+
             if (onlyAddMissing) {
                 const existingWords = await db.words.toArray();
                 const existingSet = new Set(
@@ -322,7 +323,7 @@ document.addEventListener('alpine:init', () => {
                         .map(word => word.word?.trim().toLowerCase())
                         .filter(Boolean)
                 );
-                
+
                 const sanitizedWords = words
                     .map(word => ({
                         word: word.word?.trim(),
@@ -330,15 +331,15 @@ document.addEventListener('alpine:init', () => {
                         createdAt: word.createdAt ? new Date(word.createdAt) : new Date()
                     }))
                     .filter(word => word.word && !existingSet.has(word.word.toLowerCase()));
-                
+
                 if (sanitizedWords.length === 0) {
                     return 0;
                 }
-                
+
                 await db.words.bulkAdd(sanitizedWords);
                 return sanitizedWords.length;
             }
-            
+
             await db.words.bulkAdd(words);
             return words.length;
         }

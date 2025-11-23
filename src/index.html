@@ -264,7 +264,7 @@
 
             <div x-show="testComplete" class="card">
                 <h3>Test Complete!</h3>
-                <p>Your score: <span x-text="score"></span> out of <span x-text="testWords.length"></span></p>
+                <p>Your score: <span x-text="score"></span> out of <span x-text="totalQuestions"></span></p>
                 <button @click="startTest()" style="margin-top: 1rem;">Restart Test</button>
             </div>
         </div>
