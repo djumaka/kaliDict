@@ -247,6 +247,35 @@ document.addEventListener('alpine:init', () => {
             document.getElementById('importFile').click();
         },
 
+        async syncWords() {
+            try {
+                const dictUrl = new URL('./dict.json', window.location.href);
+                const response = await fetch(dictUrl, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Failed to fetch dictionary.');
+                }
+                
+                const payload = await response.json();
+                const words = Array.isArray(payload?.words) ? payload.words : Array.isArray(payload) ? payload : null;
+                
+                if (!words) {
+                    throw new Error('Invalid dictionary format.');
+                }
+                
+                const addedCount = await this.processWordData(words, { onlyAddMissing: true });
+                await this.loadWords();
+                
+                if (addedCount === 0) {
+                    alert('Your dictionary is already up to date.');
+                } else {
+                    alert(`Added ${addedCount} new ${addedCount === 1 ? 'word' : 'words'}.`);
+                }
+            } catch (error) {
+                console.error('Error syncing words:', error);
+                alert('Failed to sync words. Please try again later.');
+            }
+        },
+
         async handleFileImport(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -260,16 +289,10 @@ document.addEventListener('alpine:init', () => {
                         throw new Error('Invalid file format');
                     }
                     
-                    // Clear existing words
-                    await db.words.clear();
-                    
-                    // Add imported words
-                    await db.words.bulkAdd(data.words);
-                    
-                    // Reload words
+                    const importedCount = await this.processWordData(data.words, { replaceExisting: true });
                     await this.loadWords();
                     
-                    alert(`Successfully imported ${data.words.length} words.`);
+                    alert(`Successfully imported ${importedCount} words.`);
                 } catch (error) {
                     console.error('Error importing data:', error);
                     alert('Failed to import data. The file may be corrupted or in an incorrect format.');
@@ -279,6 +302,45 @@ document.addEventListener('alpine:init', () => {
             
             // Reset the input so the same file can be imported again if needed
             event.target.value = '';
+        },
+
+        async processWordData(words, { replaceExisting = false, onlyAddMissing = false } = {}) {
+            if (!Array.isArray(words)) {
+                throw new Error('Words must be an array.');
+            }
+            
+            if (replaceExisting) {
+                await db.words.clear();
+                await db.words.bulkAdd(words);
+                return words.length;
+            }
+            
+            if (onlyAddMissing) {
+                const existingWords = await db.words.toArray();
+                const existingSet = new Set(
+                    existingWords
+                        .map(word => word.word?.trim().toLowerCase())
+                        .filter(Boolean)
+                );
+                
+                const sanitizedWords = words
+                    .map(word => ({
+                        word: word.word?.trim(),
+                        meaning: word.meaning?.trim() || '',
+                        createdAt: word.createdAt ? new Date(word.createdAt) : new Date()
+                    }))
+                    .filter(word => word.word && !existingSet.has(word.word.toLowerCase()));
+                
+                if (sanitizedWords.length === 0) {
+                    return 0;
+                }
+                
+                await db.words.bulkAdd(sanitizedWords);
+                return sanitizedWords.length;
+            }
+            
+            await db.words.bulkAdd(words);
+            return words.length;
         }
     }));
 });
