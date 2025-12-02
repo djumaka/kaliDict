@@ -69,17 +69,44 @@
         }
 
         .correct {
-            background-color: #d1fae5 !important;
+            background-color: #34d399 !important;
+            border: 2px solid #2563eb !important;
+            color: #1e3a8a !important;
         }
 
         .incorrect {
-            background-color: #fee2e2 !important;
+            background-color: #f87171 !important;
+            border: 2px solid #2563eb !important;
+            color: #1e3a8a !important;
         }
 
         .nav {
             display: flex;
             justify-content: space-between;
             margin-bottom: 1rem;
+        }
+
+        .mode-toggle {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .mode-toggle button {
+            border: 1px solid #e5e7eb;
+            background: #f9fafb;
+            color: #374151;
+            border-radius: 999px;
+            padding: 0.4rem 0.5rem;
+            font-weight: 500;
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .mode-toggle button.active {
+            background: #4f46e5;
+            color: #ffffff;
+            border-color: #4f46e5;
         }
     </style>
 <style>
@@ -238,27 +265,74 @@
         <div x-show="view === 'test'" x-init="startTest()">
             <div x-show="!testComplete" class="card">
                 <h3>Test Your Knowledge</h3>
-                <p>What is the meaning of:</p>
-                <h2 x-text="currentTest.question"></h2>
 
-                <div class="test-options">
-                    <template x-for="(option, index) in currentTest.options" :key="index">
-                        <button
-                            @click="checkAnswer(option.correct, $event)"
-                            :class="{
-                                'correct': option.correct && selectedAnswer !== null,
-                                'incorrect': !option.correct && selectedAnswer === option.text
-                            }"
-                            :disabled="selectedAnswer !== null"
-                            x-text="option.text">
-                        </button>
-                    </template>
+                <div class="mode-toggle">
+                    <button
+                        :class="{ 'active': testMode === 'multiple-choice' }"
+                        @click="setTestMode('multiple-choice')">
+                        Multiple Choice
+                    </button>
+                    <button
+                        :class="{ 'active': testMode === 'written' }"
+                        @click="setTestMode('written')">
+                        Written
+                    </button>
+                    <button
+                        :class="{ 'active': testMode === 'mixed' }"
+                        @click="setTestMode('mixed')">
+                        Mixed
+                    </button>
                 </div>
 
-                <div x-show="selectedAnswer !== null" style="margin-top: 1rem;">
+                <template x-if="currentPrompt?.type === 'multiple-choice'">
+                    <div>
+                        <p x-text="currentPrompt.description"></p>
+                        <h2 x-text="currentPrompt.question"></h2>
+
+                        <div class="test-options">
+                            <template x-for="option in currentPrompt.options" :key="option.id">
+                                <button
+                                    @click="selectOption(option)"
+                                    :class="{
+                                        'correct': questionAnswered && option.isCorrect,
+                                        'incorrect': questionAnswered && selectedOptionId === option.id && !option.isCorrect
+                                    }"
+                                    :disabled="questionAnswered"
+                                    x-text="option.label">
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <template x-if="currentPrompt?.type === 'written'">
+                    <div>
+                        <p x-text="currentPrompt.description"></p>
+                        <h2 x-text="currentPrompt.prompt"></h2>
+
+                        <input
+                            type="text"
+                            x-model="writtenAnswer"
+                            placeholder="Enter the word"
+                            :disabled="questionAnswered"
+                            @keyup.enter="submitWrittenAnswer">
+                        <button
+                            @click="submitWrittenAnswer"
+                            style="margin-top: 0.75rem;"
+                            :disabled="questionAnswered || !writtenAnswer.trim()">
+                            Check Answer
+                        </button>
+                    </div>
+                </template>
+
+                <div x-show="questionAnswered" style="margin-top: 1rem;">
                     <p x-show="isCorrect">✅ Correct!</p>
-                    <p x-show="!isCorrect">❌ Incorrect. The correct answer is: <span x-text="correctAnswer"></span></p>
-                    <button @click="nextQuestion" style="margin-top: 1rem;">Next Question</button>
+                    <div x-show="!isCorrect">
+                        <p>❌ Incorrect. The correct answer is: <span x-text="correctAnswer"></span></p>
+                    </div>
+                    <p x-show="similarityScore !== null">Similarity: <span x-text="similarityScore + '%'"></span></p>
+                    <p x-show="answerFeedback" x-text="answerFeedback"></p>
+                    <button @click="loadNextPrompt" style="margin-top: 1rem;">Next Question</button>
                 </div>
             </div>
 
