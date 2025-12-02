@@ -229,7 +229,20 @@
                 </div>
 
                 <div x-show="filteredWords.length > 0">
-                    <div x-html="wordCards"></div>
+                    <template x-for="word in filteredWords" :key="word.id || word.word">
+                        <div class="card">
+                            <h3 x-text="word.word"></h3>
+                            <p x-text="word.meaning"></p>
+                            <button
+                                x-show="isAdminMode"
+                                @click="deleteWord(word.id)"
+                                class="secondary"
+                                style="margin-top: 0.5rem; color: white; background-color: #dc2626; border-color: #dc2626; padding: 0.25rem 0.5rem; display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 32px;"
+                                title="Delete">
+                                <iconify-icon icon="jam:trash" width="16" height="16"></iconify-icon>
+                            </button>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>

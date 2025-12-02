@@ -106,29 +106,6 @@ document.addEventListener('alpine:init', () => {
             );
         },
 
-        get wordCards() {
-            return this.filteredWords.map(word => `
-                <div class="card">
-                    <h3>${this.escapeHtml(word.word)}</h3>
-                    <p>${this.escapeHtml(word.meaning)}</p>
-                    ${this.isAdminMode ? `
-                    <button @click="deleteWord(${word.id})" class="secondary" style="margin-top: 0.5rem; color: white; background-color: #dc2626; border-color: #dc2626; padding: 0.25rem 0.5rem; display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 32px;" title="Delete">
-                        <iconify-icon icon="jam:trash" width="16" height="16"></iconify-icon>
-                    </button>
-                    ` : ''}
-                </div>
-            `).join('');
-        },
-
-        escapeHtml(unsafe) {
-            return unsafe
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        },
-
         async addWord() {
             if (!this.newWord.word || !this.newWord.meaning) return;
 
