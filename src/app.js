@@ -24,7 +24,7 @@ document.addEventListener('alpine:init', () => {
             word: '',
             meaning: ''
         },
-        testWords: [],
+        testSession: null,
         testMode: 'multiple-choice',
         currentPrompt: null,
         questionAnswered: false,
@@ -93,6 +93,35 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        applyTestSession(session) {
+            this.testSession = session;
+
+            if (!session) {
+                this.currentPrompt = null;
+                this.correctAnswer = '';
+                this.questionAnswered = false;
+                this.selectedOptionId = null;
+                this.similarityScore = null;
+                this.isCorrect = false;
+                this.answerFeedback = '';
+                this.score = 0;
+                this.totalQuestions = this.questionLimit;
+                this.testComplete = false;
+                return;
+            }
+
+            this.currentPrompt = session.currentPrompt;
+            this.correctAnswer = session.correctAnswer;
+            this.questionAnswered = session.questionAnswered;
+            this.selectedOptionId = session.selectedOptionId;
+            this.similarityScore = session.similarityScore;
+            this.isCorrect = session.isCorrect;
+            this.answerFeedback = session.answerFeedback;
+            this.score = session.score;
+            this.totalQuestions = session.totalQuestions;
+            this.testComplete = session.testComplete;
+        },
+
         filterWords() {
             if (!this.searchTerm) {
                 this.filteredWords = [...this.words];
@@ -141,132 +170,42 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
-            const shuffledWords = [...this.words].sort(() => 0.5 - Math.random());
-            const questionsCount = Math.min(this.questionLimit, shuffledWords.length);
-            this.testWords = shuffledWords.slice(0, questionsCount);
-            this.totalQuestions = questionsCount;
-            this.score = 0;
-            this.testComplete = false;
-            this.loadNextPrompt();
+            const session = testEngine.startSession({
+                words: this.words,
+                questionLimit: this.questionLimit,
+                mode: this.testMode
+            });
+
+            this.writtenAnswer = '';
+            this.applyTestSession(session);
         },
 
         loadNextPrompt() {
-            if (this.testWords.length === 0) {
-                this.testComplete = true;
-                this.currentPrompt = null;
+            if (!this.testSession) {
                 return;
             }
 
-            this.resetQuestionState();
-
-            const nextWord = this.testWords.pop();
-            const promptType = this.resolveQuestionType();
-            this.currentPrompt = this.createPrompt(nextWord, promptType);
-            this.correctAnswer = this.currentPrompt?.correctResponse || '';
-        },
-
-        resolveQuestionType() {
-            if (this.testMode === 'mixed') {
-                return Math.random() < 0.5 ? 'multiple-choice' : 'written';
-            }
-            return this.testMode;
-        },
-
-        createPrompt(word, type) {
-            if (type === 'written') {
-                return this.createWrittenPrompt(word);
-            }
-            return this.createMultipleChoicePrompt(word);
-        },
-
-        createMultipleChoicePrompt(correctWord) {
-            const incorrectWords = this.words
-                .filter(w => w.id !== correctWord.id)
-                .sort(() => 0.5 - Math.random())
-                .slice(0, 3);
-
-            const options = [
-                { id: `correct-${correctWord.id}`, label: correctWord.meaning, isCorrect: true }
-            ].concat(
-                incorrectWords.map((w, index) => ({
-                    id: `incorrect-${correctWord.id}-${index}`,
-                    label: w.meaning,
-                    isCorrect: false
-                }))
-            ).sort(() => 0.5 - Math.random());
-
-            return {
-                type: 'multiple-choice',
-                description: 'What is the meaning of:',
-                question: correctWord.word,
-                options,
-                correctResponse: correctWord.meaning
-            };
-        },
-
-        createWrittenPrompt(word) {
-            return {
-                type: 'written',
-                description: 'Type the word for this meaning:',
-                prompt: word.meaning,
-                correctResponse: word.word,
-                normalizedCorrect: this.normalizeText(word.word)
-            };
-        },
-
-        resetQuestionState() {
-            this.questionAnswered = false;
-            this.selectedOptionId = null;
+            const session = testEngine.loadNextPrompt(this.testSession);
             this.writtenAnswer = '';
-            this.answerFeedback = '';
-            this.similarityScore = null;
-            this.isCorrect = false;
+            this.applyTestSession(session);
         },
 
         selectOption(option) {
-            if (!this.currentPrompt || this.currentPrompt.type !== 'multiple-choice' || this.questionAnswered) {
+            if (!this.testSession) {
                 return;
             }
 
-            this.selectedOptionId = option.id;
-            this.questionAnswered = true;
-            this.isCorrect = !!option.isCorrect;
-
-            if (this.isCorrect) {
-                this.score++;
-                this.answerFeedback = 'Great job!';
-            } else {
-                this.answerFeedback = 'Not quite. Keep practicing!';
-            }
+            const session = testEngine.answerMultipleChoice(this.testSession, option);
+            this.applyTestSession(session);
         },
 
         submitWrittenAnswer() {
-            if (!this.currentPrompt || this.currentPrompt.type !== 'written' || this.questionAnswered) {
+            if (!this.testSession) {
                 return;
             }
 
-            const normalizedInput = this.normalizeText(this.writtenAnswer);
-            if (!normalizedInput) {
-                return;
-            }
-
-            const similarity = this.calculateSimilarity(
-                normalizedInput,
-                this.currentPrompt.normalizedCorrect
-            );
-
-            this.similarityScore = Math.round(similarity * 100);
-            this.isCorrect = similarity >= 0.95;
-            this.questionAnswered = true;
-
-            if (this.isCorrect) {
-                this.score++;
-                this.answerFeedback = 'Perfect!';
-            } else if (similarity >= 0.8) {
-                this.answerFeedback = 'Close! Double-check the spelling.';
-            } else {
-                this.answerFeedback = 'Keep practicing that spelling.';
-            }
+            const session = testEngine.answerWritten(this.testSession, this.writtenAnswer);
+            this.applyTestSession(session);
         },
 
         setTestMode(mode) {
@@ -363,49 +302,5 @@ document.addEventListener('alpine:init', () => {
             event.target.value = '';
         },
 
-        normalizeText(text) {
-            if (!text) return '';
-            return text
-                .toLowerCase()
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-        },
-
-        calculateSimilarity(a, b) {
-            if (!a && !b) return 1;
-            if (!a || !b) return 0;
-            const distance = this.levenshteinDistance(a, b);
-            const maxLen = Math.max(a.length, b.length) || 1;
-            return 1 - distance / maxLen;
-        },
-
-        levenshteinDistance(a, b) {
-            if (a === b) return 0;
-            const matrix = Array.from({ length: a.length + 1 }, () =>
-                new Array(b.length + 1).fill(0)
-            );
-
-            for (let i = 0; i <= a.length; i++) {
-                matrix[i][0] = i;
-            }
-            for (let j = 0; j <= b.length; j++) {
-                matrix[0][j] = j;
-            }
-
-            for (let i = 1; i <= a.length; i++) {
-                for (let j = 1; j <= b.length; j++) {
-                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-                    matrix[i][j] = Math.min(
-                        matrix[i - 1][j] + 1,
-                        matrix[i][j - 1] + 1,
-                        matrix[i - 1][j - 1] + cost
-                    );
-                }
-            }
-
-            return matrix[a.length][b.length];
-        }
     }));
 });
