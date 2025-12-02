@@ -1,11 +1,3 @@
-// Initialize the database
-const db = new Dexie('DictionaryDB');
-
-db.version(1).stores({
-    words: '++id, word, meaning, createdAt',
-    settings: 'key, value'
-});
-
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -94,7 +86,7 @@ document.addEventListener('alpine:init', () => {
 
         async loadWords() {
             try {
-                this.words = await db.words.orderBy('word').toArray();
+                this.words = await dictionaryRepository.getWords();
                 this.filteredWords = [...this.words];
             } catch (error) {
                 console.error('Error loading words:', error);
@@ -141,11 +133,7 @@ document.addEventListener('alpine:init', () => {
             if (!this.newWord.word || !this.newWord.meaning) return;
 
             try {
-                await db.words.add({
-                    word: this.newWord.word.trim(),
-                    meaning: this.newWord.meaning.trim(),
-                    createdAt: new Date()
-                });
+                await dictionaryRepository.addWord(this.newWord.word, this.newWord.meaning);
 
                 this.newWord = { word: '', meaning: '' };
                 this.addNewWord = false;
@@ -159,7 +147,7 @@ document.addEventListener('alpine:init', () => {
             if (!confirm('Are you sure you want to delete this word?')) return;
 
             try {
-                await db.words.delete(id);
+                await dictionaryRepository.deleteWord(id);
                 await this.loadWords();
             } catch (error) {
                 console.error('Error deleting word:', error);
@@ -314,7 +302,7 @@ document.addEventListener('alpine:init', () => {
 
         async exportData() {
             try {
-                const words = await db.words.toArray();
+                const words = await dictionaryRepository.getAllWords();
                 const data = {
                     version: 1,
                     exportedAt: new Date().toISOString(),
@@ -356,7 +344,7 @@ document.addEventListener('alpine:init', () => {
                     throw new Error('Invalid dictionary format.');
                 }
 
-                const addedCount = await this.processWordData(words, { onlyAddMissing: true });
+                const addedCount = await dictionaryRepository.processWordData(words, { onlyAddMissing: true });
                 await this.loadWords();
 
                 if (addedCount === 0) {
@@ -383,7 +371,7 @@ document.addEventListener('alpine:init', () => {
                         throw new Error('Invalid file format');
                     }
 
-                    const importedCount = await this.processWordData(data.words, { replaceExisting: true });
+                    const importedCount = await dictionaryRepository.processWordData(data.words, { replaceExisting: true });
                     await this.loadWords();
 
                     alert(`Successfully imported ${importedCount} words.`);
@@ -396,45 +384,6 @@ document.addEventListener('alpine:init', () => {
 
             // Reset the input so the same file can be imported again if needed
             event.target.value = '';
-        },
-
-        async processWordData(words, { replaceExisting = false, onlyAddMissing = false } = {}) {
-            if (!Array.isArray(words)) {
-                throw new Error('Words must be an array.');
-            }
-
-            if (replaceExisting) {
-                await db.words.clear();
-                await db.words.bulkAdd(words);
-                return words.length;
-            }
-
-            if (onlyAddMissing) {
-                const existingWords = await db.words.toArray();
-                const existingSet = new Set(
-                    existingWords
-                        .map(word => word.word?.trim().toLowerCase())
-                        .filter(Boolean)
-                );
-
-                const sanitizedWords = words
-                    .map(word => ({
-                        word: word.word?.trim(),
-                        meaning: word.meaning?.trim() || '',
-                        createdAt: word.createdAt ? new Date(word.createdAt) : new Date()
-                    }))
-                    .filter(word => word.word && !existingSet.has(word.word.toLowerCase()));
-
-                if (sanitizedWords.length === 0) {
-                    return 0;
-                }
-
-                await db.words.bulkAdd(sanitizedWords);
-                return sanitizedWords.length;
-            }
-
-            await db.words.bulkAdd(words);
-            return words.length;
         },
 
         normalizeText(text) {
