@@ -219,22 +219,8 @@ document.addEventListener('alpine:init', () => {
         async exportData() {
             try {
                 const words = await dictionaryRepository.getAllWords();
-                const data = {
-                    version: 1,
-                    exportedAt: new Date().toISOString(),
-                    words: words
-                };
-
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `dictionary-export-${new Date().toISOString().split('T')[0]}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                const data = dictionaryTransfer.buildExportData(words);
+                dictionaryTransfer.downloadJsonFile(data);
             } catch (error) {
                 console.error('Error exporting data:', error);
                 alert('Failed to export data. Please try again.');
@@ -254,11 +240,7 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 const payload = await response.json();
-                const words = Array.isArray(payload?.words) ? payload.words : Array.isArray(payload) ? payload : null;
-
-                if (!words) {
-                    throw new Error('Invalid dictionary format.');
-                }
+                const words = dictionaryTransfer.parseDictionaryWords(payload);
 
                 const addedCount = await dictionaryRepository.processWordData(words, { onlyAddMissing: true });
                 await this.loadWords();
@@ -278,28 +260,22 @@ document.addEventListener('alpine:init', () => {
             const file = event.target.files[0];
             if (!file) return;
 
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
+            try {
+                const fileContent = await dictionaryTransfer.readFileAsText(file);
+                const payload = JSON.parse(fileContent);
+                const words = dictionaryTransfer.parseDictionaryWords(payload);
 
-                    if (!data.words || !Array.isArray(data.words)) {
-                        throw new Error('Invalid file format');
-                    }
+                const importedCount = await dictionaryRepository.processWordData(words, { replaceExisting: true });
+                await this.loadWords();
 
-                    const importedCount = await dictionaryRepository.processWordData(data.words, { replaceExisting: true });
-                    await this.loadWords();
-
-                    alert(`Successfully imported ${importedCount} words.`);
-                } catch (error) {
-                    console.error('Error importing data:', error);
-                    alert('Failed to import data. The file may be corrupted or in an incorrect format.');
-                }
-            };
-            reader.readAsText(file);
-
-            // Reset the input so the same file can be imported again if needed
-            event.target.value = '';
+                alert(`Successfully imported ${importedCount} words.`);
+            } catch (error) {
+                console.error('Error importing data:', error);
+                alert('Failed to import data. The file may be corrupted or in an incorrect format.');
+            } finally {
+                // Reset the input so the same file can be imported again if needed
+                event.target.value = '';
+            }
         },
 
     }));
