@@ -25,7 +25,7 @@ document.addEventListener('alpine:init', () => {
             meaning: ''
         },
         testSession: null,
-        testMode: 'multiple-choice',
+        testMode:  null,
         currentPrompt: null,
         questionAnswered: false,
         selectedOptionId: null,

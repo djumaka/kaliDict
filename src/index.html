@@ -69,9 +69,9 @@
         }
 
         .correct {
-            background-color: #34d399 !important;
+            background-color: #007805 !important;
             border: 2px solid #2563eb !important;
-            color: #1e3a8a !important;
+            color: #ffffff !important;
         }
 
         .incorrect {
@@ -275,7 +275,7 @@
             </div>
         </div>
 
-        <div x-show="view === 'test'" x-init="startTest()">
+        <div x-show="view === 'test'">
             <div x-show="!testComplete" class="card">
                 <h3>Test Your Knowledge</h3>
 
@@ -343,7 +343,7 @@
                     <div x-show="!isCorrect">
                         <p>❌ Incorrect. The correct answer is: <span x-text="correctAnswer"></span></p>
                     </div>
-                    <p x-show="similarityScore !== null">Similarity: <span x-text="similarityScore + '%'"></span></p>
+                    <p x-show="similarityScore !== null && !isCorrect">Similarity: <span x-text="similarityScore + '%'"></span></p>
                     <p x-show="answerFeedback" x-text="answerFeedback"></p>
                     <button @click="loadNextPrompt" style="margin-top: 1rem;">Next Question</button>
                 </div>
