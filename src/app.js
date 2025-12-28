@@ -27,6 +27,8 @@ document.addEventListener('alpine:init', () => {
         testSession: null,
         testMode:  null,
         currentPrompt: null,
+        testPhase: 'initial',
+        reviewTotal: 0,
         questionAnswered: false,
         selectedOptionId: null,
         writtenAnswer: '',
@@ -99,6 +101,8 @@ document.addEventListener('alpine:init', () => {
             if (!session) {
                 this.currentPrompt = null;
                 this.correctAnswer = '';
+                this.testPhase = 'initial';
+                this.reviewTotal = 0;
                 this.questionAnswered = false;
                 this.selectedOptionId = null;
                 this.similarityScore = null;
@@ -112,6 +116,8 @@ document.addEventListener('alpine:init', () => {
 
             this.currentPrompt = session.currentPrompt;
             this.correctAnswer = session.correctAnswer;
+            this.testPhase = session.phase;
+            this.reviewTotal = session.reviewTotal;
             this.questionAnswered = session.questionAnswered;
             this.selectedOptionId = session.selectedOptionId;
             this.similarityScore = session.similarityScore;

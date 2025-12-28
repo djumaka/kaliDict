@@ -42,7 +42,8 @@
             description: 'What is the meaning of:',
             question: correctWord.word,
             options,
-            correctResponse: correctWord.meaning
+            correctResponse: correctWord.meaning,
+            sourceWord: correctWord
         };
     }
 
@@ -52,7 +53,8 @@
             description: 'Type the word for this meaning:',
             prompt: word.meaning,
             correctResponse: word.word,
-            normalizedCorrect: normalizeText(word.word)
+            normalizedCorrect: normalizeText(word.word),
+            sourceWord: word
         };
     }
 
@@ -62,6 +64,7 @@
             .toLowerCase()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[.?!]+$/g, '')
             .replace(/\s+/g, ' ')
             .trim();
     }
@@ -109,6 +112,9 @@
             wordBank: words.slice(),
             remainingWords,
             totalQuestions,
+            phase: 'initial',
+            missedWords: [],
+            reviewTotal: 0,
             score: 0,
             currentPrompt: null,
             correctAnswer: '',
@@ -134,11 +140,44 @@
         };
     }
 
+    function addMissedWord(session, word) {
+        if (!word || !session || session.phase !== 'initial') {
+            return session;
+        }
+
+        const alreadyMissed = session.missedWords.some(item => item.id === word.id);
+        if (alreadyMissed) {
+            return session;
+        }
+
+        return {
+            ...session,
+            missedWords: [...session.missedWords, word]
+        };
+    }
+
     function loadNextPrompt(session) {
         if (!session) return session;
         const baseState = resetQuestionState(session);
 
         if (baseState.remainingWords.length === 0) {
+            if (baseState.phase === 'initial' && baseState.missedWords.length > 0) {
+                const reviewWords = shuffle(baseState.missedWords);
+                const nextWord = reviewWords.pop();
+                const promptType = resolveQuestionType(baseState.mode);
+                const currentPrompt = createPrompt(nextWord, promptType, baseState.wordBank);
+
+                return {
+                    ...baseState,
+                    phase: 'review',
+                    reviewTotal: baseState.missedWords.length,
+                    remainingWords: reviewWords,
+                    currentPrompt,
+                    correctAnswer: currentPrompt?.correctResponse || '',
+                    testComplete: false
+                };
+            }
+
             return {
                 ...baseState,
                 currentPrompt: null,
@@ -167,12 +206,17 @@
         }
 
         const isCorrect = !!option.isCorrect;
+        const scoreDelta = isCorrect && session.phase === 'initial' ? 1 : 0;
+        const updatedSession = isCorrect
+            ? session
+            : addMissedWord(session, session.currentPrompt.sourceWord);
+
         return {
-            ...session,
+            ...updatedSession,
             questionAnswered: true,
             selectedOptionId: option.id,
             isCorrect,
-            score: session.score + (isCorrect ? 1 : 0),
+            score: updatedSession.score + scoreDelta,
             answerFeedback: isCorrect ? 'Great job!' : 'Not quite. Keep practicing!'
         };
     }
@@ -200,11 +244,16 @@
             answerFeedback = 'Close! Double-check the spelling.';
         }
 
+        const scoreDelta = isCorrect && session.phase === 'initial' ? 1 : 0;
+        const updatedSession = isCorrect
+            ? session
+            : addMissedWord(session, session.currentPrompt.sourceWord);
+
         return {
-            ...session,
+            ...updatedSession,
             questionAnswered: true,
             isCorrect,
-            score: session.score + (isCorrect ? 1 : 0),
+            score: updatedSession.score + scoreDelta,
             similarityScore: Math.round(similarity * 100),
             answerFeedback
         };

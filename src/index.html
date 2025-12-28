@@ -49,6 +49,16 @@
             to { transform: rotate(360deg); }
         }
 
+        @keyframes review-drop {
+            0% { opacity: 0; transform: translateY(-10px) scale(0.98); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes review-flash {
+            0%, 100% { box-shadow: 0 0 0 rgba(255, 193, 7, 0); }
+            50% { box-shadow: 0 0 0 6px rgba(255, 193, 7, 0.35); }
+        }
+
         .animate-spin {
             animation: spin 1s linear infinite;
         }
@@ -107,6 +117,19 @@
             background: #4f46e5;
             color: #ffffff;
             border-color: #4f46e5;
+        }
+
+        .review-banner {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #fff3cd;
+            color: #7a3e00;
+            border: 1px solid #ffe69c;
+            border-radius: 999px;
+            padding: 0.35rem 0.8rem;
+            font-weight: 600;
+            animation: review-drop 320ms ease-out, review-flash 1.2s ease-in-out 2;
         }
     </style>
 <style>
@@ -296,7 +319,7 @@
                         Mixed
                     </button>
                 </div>
-
+                <p x-show="testPhase === 'review'" class="review-banner" style="margin-top: 0.25rem;">Review your mistakes.</p>
                 <template x-if="currentPrompt?.type === 'multiple-choice'">
                     <div>
                         <p x-text="currentPrompt.description"></p>
